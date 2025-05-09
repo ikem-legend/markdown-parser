@@ -1,25 +1,23 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
-import ReactMarkdown from "react-markdown";
-import rehypeRaw from "rehype-raw";
-import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { toPng } from "html-to-image";
-import jsPDF from "jspdf";
-import { useMarkdownStore } from "../store/markdownStore";
-import { createRoot } from "react-dom/client";
-import "../markdownStyles.css";
+import { useRef, useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import jsPDF from 'jspdf';
+import { useMarkdownStore } from '../store/markdownStore';
+import '../markdownStyles.css';
 
 interface MarkdownPreviewPaneProps {
   className?: string;
 }
 
-const MarkdownPreviewPane = ({ className = "" }: MarkdownPreviewPaneProps) => {
+const MarkdownPreviewPane = ({ className = '' }: MarkdownPreviewPaneProps) => {
   const { content } = useMarkdownStore();
   const [isHydrated, setIsHydrated] = useState(false);
-  const [localContent, setLocalContent] = useState("");
+  const [localContent, setLocalContent] = useState('');
   const previewRef = useRef<HTMLDivElement>(null);
 
   // Handle hydration
@@ -34,165 +32,158 @@ const MarkdownPreviewPane = ({ className = "" }: MarkdownPreviewPaneProps) => {
     try {
       // Get the HTML content of the preview
       const htmlContent = previewRef.current.innerHTML;
-
+      
       // Create a temporary element to hold the content
-      const tempElement = document.createElement("div");
+      const tempElement = document.createElement('div');
       tempElement.innerHTML = htmlContent;
-
+      
       // Use the Clipboard API to copy HTML content
       await navigator.clipboard.write([
         new ClipboardItem({
-          "text/html": new Blob([tempElement.innerHTML], { type: "text/html" }),
-          "text/plain": new Blob([previewRef.current.innerText], {
-            type: "text/plain",
-          }),
-        }),
+          'text/html': new Blob([tempElement.innerHTML], { type: 'text/html' }),
+          'text/plain': new Blob([previewRef.current.innerText], { type: 'text/plain' })
+        })
       ]);
-
-      alert("Content copied to clipboard!");
+      
+      alert('Content copied to clipboard!');
     } catch (error) {
-      console.error("Failed to copy: ", error);
-      alert("Failed to copy content.");
+      console.error('Failed to copy: ', error);
+      alert('Failed to copy content.');
     }
   };
 
-  const handleExport = async () => {
+  const handleExport = () => {
     if (!previewRef.current) return;
 
     try {
-      // Create a temporary container for PDF export with light theme
-      const tempContainer = document.createElement("div");
-      tempContainer.className = "pdf-export-container";
-      tempContainer.style.position = "absolute";
-      tempContainer.style.left = "-9999px";
-      tempContainer.style.top = "-9999px";
-      tempContainer.style.width = `${previewRef.current.offsetWidth}px`;
-      tempContainer.style.backgroundColor = "white";
-      tempContainer.style.color = "black";
-      tempContainer.style.padding = "20px";
-
-      // Clone the content into the light-themed container
-      const markdownContentDiv = document.createElement("div");
-      markdownContentDiv.className =
-        "markdown-preview-for-export markdown-preview prose max-w-none";
-
-      // Add custom styles for PDF export
-      const style = document.createElement("style");
-      style.textContent = `
-        .markdown-preview-for-export {
-          color: black !important;
-        }
-        .markdown-preview-for-export h1, 
-        .markdown-preview-for-export h2, 
-        .markdown-preview-for-export h3, 
-        .markdown-preview-for-export h4 {
-          color: black !important;
-          font-weight: bold !important;
-        }
-        .markdown-preview-for-export p, 
-        .markdown-preview-for-export li,
-        .markdown-preview-for-export span,
-        .markdown-preview-for-export div {
-          color: black !important;
-        }
-        .markdown-preview-for-export code {
-          background-color: #f5f5f5 !important;
-          color: #e83e8c !important;
-        }
-        .markdown-preview-for-export pre {
-          background-color: #f5f5f5 !important;
-          border: 1px solid #ddd !important;
-        }
-        .markdown-preview-for-export pre code {
-          color: #333 !important;
-        }
-        .markdown-preview-for-export a {
-          color: #2563eb !important;
-        }
-        .markdown-preview-for-export blockquote {
-          color: #4b5563 !important;
-          border-left-color: #d1d5db !important;
-        }
-      `;
-
-      tempContainer.appendChild(style);
-      tempContainer.appendChild(markdownContentDiv);
-      document.body.appendChild(tempContainer);
-
-      // Render the markdown in the temporary container
-      const ReactMarkdownComponent = (
-        <ReactMarkdown
-          rehypePlugins={[rehypeRaw]}
-          remarkPlugins={[remarkGfm]}
-          components={{
-            code({ className, children, ...props }) {
-              const match = /language-(\w+)/.exec(className || "");
-              const isInline = !className;
-              return !isInline && match ? (
-                <SyntaxHighlighter
-                  // @ts-expect-error - Type issue with the style object
-                  style={atomDark}
-                  language={match[1]}
-                  PreTag="div"
-                  {...props}
-                >
-                  {String(children).replace(/\n$/, "")}
-                </SyntaxHighlighter>
-              ) : (
-                <code className={className} {...props}>
-                  {children}
-                </code>
-              );
-            },
-          }}
-        >
-          {localContent}
-        </ReactMarkdown>
-      );
-
-      // Use React 18's createRoot API
-      const root = createRoot(markdownContentDiv);
-      root.render(ReactMarkdownComponent);
-
-      // Wait for rendering to complete
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Generate PNG from the temporary element
-      const dataUrl = await toPng(tempContainer);
-
-      // Create a new PDF
+      // Create a new PDF in portrait orientation with mm units on A4 paper
       const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
       });
 
-      // Calculate width to fit on PDF while maintaining aspect ratio
-      const imgProps = pdf.getImageProperties(dataUrl);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-      // Add the image to the PDF
-      pdf.addImage(dataUrl, "PNG", 0, 0, pdfWidth, pdfHeight);
-
+      // Use the raw markdown content directly for the PDF
+      const lines = localContent.split('\n');
+      let y = 20; // Starting y position
+      const lineHeight = 7;
+      const margin = 20;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const maxWidth = pageWidth - (margin * 2);
+      
+      // Add a title
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(18);
+      pdf.setTextColor(0, 0, 0);
+      const title = "Markdown Export";
+      pdf.text(title, margin, y);
+      y += lineHeight + 5;
+      
+      // Process each line of markdown content
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(11);
+      
+      lines.forEach(line => {
+        // Handle headings (very basic)
+        if (line.startsWith('# ')) {
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(16);
+          pdf.text(line.substring(2), margin, y);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setFontSize(11);
+          y += lineHeight + 3;
+        }
+        else if (line.startsWith('## ')) {
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(14);
+          pdf.text(line.substring(3), margin, y);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setFontSize(11);
+          y += lineHeight + 2;
+        }
+        else if (line.startsWith('### ')) {
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(12);
+          pdf.text(line.substring(4), margin, y);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setFontSize(11);
+          y += lineHeight + 1;
+        }
+        // Handle lists (very basic)
+        else if (line.startsWith('- ')) {
+          const textWidth = pdf.getStringUnitWidth(line) * pdf.getFontSize() / pdf.internal.scaleFactor;
+          if (textWidth > maxWidth) {
+            const words = line.split(' ');
+            let currentLine = '';
+            words.forEach(word => {
+              const testLine = currentLine + word + ' ';
+              const testWidth = pdf.getStringUnitWidth(testLine) * pdf.getFontSize() / pdf.internal.scaleFactor;
+              if (testWidth > maxWidth) {
+                pdf.text(currentLine, margin + 5, y);
+                y += lineHeight;
+                currentLine = word + ' ';
+              } else {
+                currentLine = testLine;
+              }
+            });
+            if (currentLine.trim()) {
+              pdf.text(currentLine, margin + 5, y);
+            }
+          } else {
+            pdf.text(line, margin + 5, y);
+          }
+          y += lineHeight;
+        }
+        // Handle code blocks
+        else if (line.startsWith('```') || line === '```') {
+          y += lineHeight; // Skip backticks line
+        }
+        // Handle plain text
+        else if (line.trim()) {
+          const textWidth = pdf.getStringUnitWidth(line) * pdf.getFontSize() / pdf.internal.scaleFactor;
+          if (textWidth > maxWidth) {
+            // Split long lines
+            const splitText = pdf.splitTextToSize(line, maxWidth);
+            splitText.forEach((text: string) => {
+              if (y > pdf.internal.pageSize.getHeight() - margin) {
+                pdf.addPage();
+                y = margin;
+              }
+              pdf.text(text, margin, y);
+              y += lineHeight;
+            });
+          } else {
+            if (y > pdf.internal.pageSize.getHeight() - margin) {
+              pdf.addPage();
+              y = margin;
+            }
+            pdf.text(line, margin, y);
+            y += lineHeight;
+          }
+        } else {
+          // Add spacing for empty lines
+          y += lineHeight/2;
+        }
+        
+        // Check if we need a new page
+        if (y > pdf.internal.pageSize.getHeight() - margin) {
+          pdf.addPage();
+          y = margin;
+        }
+      });
+      
       // Save the PDF
-      pdf.save("markdown-export.pdf");
-
-      // Clean up
-      root.unmount();
-      document.body.removeChild(tempContainer);
+      pdf.save('markdown-export.pdf');
     } catch (error) {
-      console.error("Error exporting to PDF: ", error);
-      alert("Failed to export to PDF.");
+      console.error('Error exporting to PDF:', error);
+      alert('Failed to export to PDF. Please try again.');
     }
   };
 
   // Show loading state until hydrated
   if (!isHydrated) {
     return (
-      <div
-        className={`flex-1 min-h-[400px] md:h-[calc(100vh-10rem)] flex flex-col ${className}`}
-      >
+      <div className={`flex-1 min-h-[400px] md:h-[calc(100vh-10rem)] flex flex-col ${className}`}>
         <div className="flex justify-end space-x-2 mb-2">
           <button
             disabled
@@ -215,9 +206,7 @@ const MarkdownPreviewPane = ({ className = "" }: MarkdownPreviewPaneProps) => {
   }
 
   return (
-    <div
-      className={`flex-1 min-h-[400px] md:h-[calc(100vh-10rem)] flex flex-col ${className}`}
-    >
+    <div className={`flex-1 min-h-[400px] md:h-[calc(100vh-10rem)] flex flex-col ${className}`}>
       <div className="flex justify-end space-x-2 mb-2">
         <button
           onClick={handleCopy}
@@ -241,8 +230,8 @@ const MarkdownPreviewPane = ({ className = "" }: MarkdownPreviewPaneProps) => {
             rehypePlugins={[rehypeRaw]}
             remarkPlugins={[remarkGfm]}
             components={{
-              code({ className, children, ...props }) {
-                const match = /language-(\w+)/.exec(className || "");
+              code({className, children, ...props}) {
+                const match = /language-(\w+)/.exec(className || '');
                 const isInline = !className;
                 return !isInline && match ? (
                   <SyntaxHighlighter
@@ -252,14 +241,14 @@ const MarkdownPreviewPane = ({ className = "" }: MarkdownPreviewPaneProps) => {
                     PreTag="div"
                     {...props}
                   >
-                    {String(children).replace(/\n$/, "")}
+                    {String(children).replace(/\n$/, '')}
                   </SyntaxHighlighter>
                 ) : (
                   <code className={className} {...props}>
                     {children}
                   </code>
                 );
-              },
+              }
             }}
           >
             {localContent}
@@ -270,4 +259,4 @@ const MarkdownPreviewPane = ({ className = "" }: MarkdownPreviewPaneProps) => {
   );
 };
 
-export default MarkdownPreviewPane;
+export default MarkdownPreviewPane; 
